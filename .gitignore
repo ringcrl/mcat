@@ -1,3 +1,7 @@
-/target
+target/*
+!target/release/
+target/release/*
+!target/release/mcat
 /dist
 .images
+.cargo/config.toml

@@ -40,12 +40,13 @@ h6 {
 }
 
 a {
-  color: #66aaff;
+  color: var(--link);
   text-decoration: none;
 }
 
 a:hover {
   text-decoration: underline;
+  opacity: 0.85;
 }
 
 code {

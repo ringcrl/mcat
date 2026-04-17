@@ -440,8 +440,9 @@ pub enum Theme {
     MakuraiDark,
     Ayu,
     AyuMirage,
-    #[default]
     Github,
+    #[default]
+    GithubLight,
     Synthwave,
     Material,
     RosePine,

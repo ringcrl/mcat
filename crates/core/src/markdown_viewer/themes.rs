@@ -42,6 +42,7 @@ impl From<&config::Theme> for CustomTheme {
             config::Theme::Ayu => CustomTheme::ayu(),
             config::Theme::AyuMirage => CustomTheme::ayu_mirage(),
             config::Theme::Github => CustomTheme::github(),
+            config::Theme::GithubLight => CustomTheme::github_light(),
             config::Theme::Synthwave => CustomTheme::synthwave(),
             config::Theme::Material => CustomTheme::material(),
             config::Theme::RosePine => CustomTheme::rose_pine(),
@@ -68,6 +69,7 @@ pub struct CustomTheme {
     pub surface: ThemeColor,
     pub border: ThemeColor,
     pub keyword_bg: ThemeColor,
+    pub link: ThemeColor,
 
     pub red: ThemeColor,
     pub green: ThemeColor,
@@ -104,6 +106,7 @@ impl CustomTheme {
             background: "#14161f".into(),
             surface: "#1E2129".into(),
             border: "#5C6773".into(),
+            link: "#5abffa".into(),
 
             red: "#fc4c4c".into(),
             green: "#a1cd32".into(),
@@ -130,6 +133,7 @@ impl CustomTheme {
             background: "#14161f".into(),
             surface: "#1E2129".into(),
             border: "#5C6773".into(),
+            link: "#66E6FF".into(),
 
             red: "#FF5555".into(),
             green: "#D4FF59".into(),
@@ -156,6 +160,7 @@ impl CustomTheme {
             background: "#14161f".into(),
             surface: "#1E212A".into(),
             border: "#5C6773".into(),
+            link: "#82AAFF".into(),
 
             red: "#FF5555".into(),
             green: "#95FB79".into(),
@@ -182,6 +187,7 @@ impl CustomTheme {
             background: "#f8f8fc".into(),
             surface: "#E8E8F0".into(),
             border: "#7e8a9e".into(),
+            link: "#2563EB".into(),
 
             red: "#E35043".into(),
             green: "#51A150".into(),
@@ -208,6 +214,7 @@ impl CustomTheme {
             background: "#272822".into(),
             surface: "#343429".into(),
             border: "#49483E".into(),
+            link: "#66D9EF".into(),
 
             red: "#F92672".into(),
             green: "#A6E22E".into(),
@@ -234,6 +241,7 @@ impl CustomTheme {
             background: "#1E1E2E".into(),
             surface: "#2A2A3A".into(),
             border: "#45475A".into(),
+            link: "#89B4FA".into(),
 
             red: "#F38BA8".into(),
             green: "#A6E3A1".into(),
@@ -260,6 +268,7 @@ impl CustomTheme {
             background: "#1A1B26".into(),
             surface: "#24283B".into(),
             border: "#414868".into(),
+            link: "#7AA2F7".into(),
 
             red: "#F7768E".into(),
             green: "#9ECE6A".into(),
@@ -286,6 +295,7 @@ impl CustomTheme {
             background: "#282A36".into(),
             surface: "#353746".into(),
             border: "#44475A".into(),
+            link: "#8BE9FD".into(),
 
             red: "#FF5555".into(),
             green: "#50FA7B".into(),
@@ -312,6 +322,7 @@ impl CustomTheme {
             background: "#272E37".into(),
             surface: "#323A47".into(),
             border: "#434C5E".into(),
+            link: "#88C0D0".into(),
 
             red: "#BF616A".into(),
             green: "#A3BE8C".into(),
@@ -338,6 +349,7 @@ impl CustomTheme {
             background: "#282828".into(),
             surface: "#3C3836".into(),
             border: "#665C54".into(),
+            link: "#83A598".into(),
 
             red: "#FB4934".into(),
             green: "#B8BB26".into(),
@@ -364,6 +376,7 @@ impl CustomTheme {
             background: "#002B36".into(),
             surface: "#0E3A47".into(),
             border: "#586E75".into(),
+            link: "#268BD2".into(),
 
             red: "#DC322F".into(),
             green: "#859900".into(),
@@ -390,6 +403,7 @@ impl CustomTheme {
             background: "#282C34".into(),
             surface: "#353B45".into(),
             border: "#3E4451".into(),
+            link: "#61AFEF".into(),
 
             red: "#E06C75".into(),
             green: "#98C379".into(),
@@ -416,6 +430,7 @@ impl CustomTheme {
             background: "#0D1117".into(),
             surface: "#1C2128".into(),
             border: "#30363D".into(),
+            link: "#79C0FF".into(),
 
             red: "#FF7B72".into(),
             green: "#56D364".into(),
@@ -425,6 +440,33 @@ impl CustomTheme {
             yellow: "#FFA657".into(),
             white: "#F0F6FC".into(),
             black: "#0D1117".into(),
+        }
+    }
+
+    pub fn github_light() -> Self {
+        CustomTheme {
+            keyword: "#CF222E".into(),
+            keyword_bg: "#FFF1F0".into(),
+            function: "#8250DF".into(),
+            string: "#0A3069".into(),
+            module: "#953800".into(),
+            constant: "#0550AE".into(),
+            comment: "#6E7781".into(),
+            foreground: "#1F2328".into(),
+            guide: "#D0D7DE".into(),
+            background: "#FFFFFF".into(),
+            surface: "#F6F8FA".into(),
+            border: "#D0D7DE".into(),
+            link: "#0969DA".into(),
+
+            red: "#CF222E".into(),
+            green: "#1A7F37".into(),
+            blue: "#0550AE".into(),
+            cyan: "#0550AE".into(),
+            magenta: "#8250DF".into(),
+            yellow: "#9A6700".into(),
+            white: "#FFFFFF".into(),
+            black: "#1F2328".into(),
         }
     }
 
@@ -442,6 +484,7 @@ impl CustomTheme {
             background: "#292D3E".into(),
             surface: "#32374D".into(),
             border: "#444267".into(),
+            link: "#82AAFF".into(),
             red: "#F07178".into(),
             green: "#C3E88D".into(),
             blue: "#82AAFF".into(),
@@ -467,6 +510,7 @@ impl CustomTheme {
             background: "#0A0E14".into(),
             surface: "#151A21".into(),
             border: "#1F2430".into(),
+            link: "#59C2FF".into(),
 
             red: "#F28779".into(),
             green: "#AAD94C".into(),
@@ -493,6 +537,7 @@ impl CustomTheme {
             background: "#1F2430".into(),
             surface: "#2A313F".into(),
             border: "#343B4C".into(),
+            link: "#73D0FF".into(),
 
             red: "#FF6666".into(),
             green: "#BAE67E".into(),
@@ -519,6 +564,7 @@ impl CustomTheme {
             background: "#262335".into(),
             surface: "#342949".into(),
             border: "#495495".into(),
+            link: "#36F9F6".into(),
 
             red: "#FE4450".into(),
             green: "#72F1B8".into(),
@@ -545,6 +591,7 @@ impl CustomTheme {
             background: "#191724".into(),
             surface: "#21202E".into(),
             border: "#403D52".into(),
+            link: "#9CCFD8".into(),
 
             red: "#EB6F92".into(),
             green: "#31748F".into(),
@@ -571,6 +618,7 @@ impl CustomTheme {
             background: "#1F1F28".into(),
             surface: "#2A2A37".into(),
             border: "#54546D".into(),
+            link: "#7E9CD8".into(),
 
             red: "#C34043".into(),
             green: "#76946A".into(),
@@ -597,6 +645,7 @@ impl CustomTheme {
             background: "#2D353B".into(),
             surface: "#384148".into(),
             border: "#504945".into(),
+            link: "#7FBBB3".into(),
 
             red: "#E67E80".into(),
             green: "#A7C080".into(),
@@ -623,6 +672,7 @@ impl CustomTheme {
             background: "#1E1E1E".into(),
             surface: "#2D2D30".into(),
             border: "#3E3E42".into(),
+            link: "#569CD6".into(),
 
             red: "#F44747".into(),
             green: "#6A9955".into(),
@@ -715,7 +765,8 @@ impl CustomTheme {
   --constant: {};
   --comment: {};
   --foreground: {};
-  
+  --link: {};
+
   /* UI Colors */
   --background: {};
   --surface: {};
@@ -728,6 +779,7 @@ impl CustomTheme {
             self.constant.value,
             self.comment.value,
             self.foreground.value,
+            self.link.value,
             self.background.value,
             self.surface.value,
             self.border.value
