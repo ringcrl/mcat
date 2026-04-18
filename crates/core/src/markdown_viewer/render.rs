@@ -597,8 +597,9 @@ fn render_table<'a>(node: &'a AstNode<'a>, ctx: &mut AnsiContext) -> String {
         row_heights[row_idx] = max_lines_in_row;
     }
 
-    let color = &ctx.theme.border.fg;
-    let header_color = &ctx.theme.yellow.fg;
+    let border_style = format!("{}{}", ctx.theme.surface.bg, ctx.theme.border.fg);
+    let header_style = format!("{}{}", ctx.theme.surface.bg, ctx.theme.yellow.fg);
+    let body_style = format!("{}{}", ctx.theme.surface.bg, ctx.theme.foreground.fg);
     let mut result = String::new();
     let is_only_headers = rows.len() == 1;
 
@@ -607,7 +608,7 @@ fn render_table<'a>(node: &'a AstNode<'a>, ctx: &mut AnsiContext) -> String {
 
         let build_line = |left: &str, mid: &str, right: &str, fill: &str| -> String {
             let mut line = String::new();
-            line.push_str(color);
+            line.push_str(&border_style);
             line.push_str(left);
             for (i, &width) in column_widths.iter().enumerate() {
                 line.push_str(&fill.repeat(width + 2));
@@ -632,17 +633,23 @@ fn render_table<'a>(node: &'a AstNode<'a>, ctx: &mut AnsiContext) -> String {
         result.push('\n');
 
         for (row_idx, row) in rows.iter().enumerate() {
-            let text_color = if row_idx == 0 { header_color } else { "" };
+            let cell_style = if row_idx == 0 {
+                &header_style
+            } else {
+                &body_style
+            };
             let row_height = row_heights[row_idx];
 
             for line_idx in 0..row_height {
-                result.push_str(&format!("{color}│{RESET}"));
+                result.push_str(&border_style);
+                result.push('│');
 
                 for (col_idx, cell) in row.iter().enumerate() {
                     let width = column_widths[col_idx];
                     let cell_line = cell.get(line_idx).map(|s| s.as_str()).unwrap_or("");
+                    let cell_line = cell_line.replace(RESET, &format!("{RESET}{cell_style}"));
 
-                    let padding = width.saturating_sub(string_len(cell_line));
+                    let padding = width.saturating_sub(string_len(&cell_line));
                     let (left_pad, right_pad) = if row_idx == 0 {
                         // Header row - always center
                         (padding / 2, padding - (padding / 2))
@@ -656,17 +663,23 @@ fn render_table<'a>(node: &'a AstNode<'a>, ctx: &mut AnsiContext) -> String {
                         }
                     };
 
-                    result.push_str(&format!(
-                        " {}{text_color}{}{} {color}│{RESET}",
-                        " ".repeat(left_pad),
-                        cell_line,
-                        " ".repeat(right_pad)
-                    ));
+                    result.push_str(cell_style);
+                    result.push(' ');
+                    result.push_str(&" ".repeat(left_pad));
+                    result.push_str(&cell_line);
+                    result.push_str(&" ".repeat(right_pad));
+                    result.push(' ');
+                    result.push_str(&border_style);
+                    result.push('│');
                 }
+                result.push_str(RESET);
                 result.push('\n');
             }
 
             if row_idx == 0 {
+                result.push_str(&middle_border);
+                result.push('\n');
+            } else if row_idx < rows.len() - 1 {
                 result.push_str(&middle_border);
                 result.push('\n');
             }
@@ -850,5 +863,82 @@ fn render_alert<'a>(node: &'a AstNode<'a>, ctx: &mut AnsiContext) -> String {
         wrap_char_based(ctx, &result, '▌', indent, "", "")
     } else {
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use comrak::{Arena, Options, parse_document};
+    use rasteroid::{RasterEncoder, term_misc::Wininfo};
+
+    use super::{AnsiContext, parse_node};
+    use crate::{
+        config::{McatConfig, Theme},
+        markdown_viewer::{image_preprocessor::ImagePreprocessor, themes::CustomTheme},
+    };
+
+    fn make_ctx<'a>(root: &'a comrak::nodes::AstNode<'a>, theme: CustomTheme) -> AnsiContext {
+        let mut conf = McatConfig::default();
+        conf.wininfo = Some(Wininfo {
+            sc_width: 80,
+            sc_height: 24,
+            spx_width: 1920,
+            spx_height: 1080,
+            is_tmux: false,
+            needs_inline: true,
+        });
+        conf.encoder = Some(RasterEncoder::Kitty);
+
+        AnsiContext {
+            ps: two_face::syntax::extra_newlines(),
+            theme,
+            wininfo: conf.wininfo.clone().unwrap(),
+            hide_line_numbers: false,
+            show_frontmatter: false,
+            center: false,
+            image_preprocessor: ImagePreprocessor::new(root, &conf, None).unwrap(),
+            blockquote_fenced_offset: None,
+            is_multi_block_quote: false,
+            paragraph_collecting_line: None,
+            collecting_depth: 0,
+            under_header: false,
+            force_simple_code_block: 0,
+            list_depth: 0,
+        }
+    }
+
+    #[test]
+    fn table_borders_use_surface_background() {
+        let arena = Arena::new();
+        let mut opts = Options::default();
+        opts.extension.table = true;
+        let markdown = "| A | B |\n| - | - |\n| 1 | 2 |";
+        let root = parse_document(&arena, markdown, &opts);
+        let theme = CustomTheme::from(&Theme::Autumn);
+        let expected_border = format!("{}{}├", theme.surface.bg, theme.border.fg);
+        let expected_surface = theme.surface.bg.clone();
+        let mut ctx = make_ctx(root, theme);
+
+        let rendered = parse_node(root, &mut ctx);
+
+        assert!(rendered.contains(&expected_surface));
+        assert!(rendered.contains(&expected_border));
+    }
+
+    #[test]
+    fn table_draws_separators_between_body_rows() {
+        let arena = Arena::new();
+        let mut opts = Options::default();
+        opts.extension.table = true;
+        let markdown = "| A | B |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |";
+        let root = parse_document(&arena, markdown, &opts);
+        let theme = CustomTheme::from(&Theme::Autumn);
+        let separator = format!("{}{}├", theme.surface.bg, theme.border.fg);
+        let mut ctx = make_ctx(root, theme);
+
+        let rendered = parse_node(root, &mut ctx);
+        let separator_count = rendered.matches(&separator).count();
+
+        assert_eq!(separator_count, 2);
     }
 }

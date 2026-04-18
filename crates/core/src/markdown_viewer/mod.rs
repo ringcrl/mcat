@@ -59,11 +59,8 @@ pub fn md_to_ansi(
         list_depth: 0,
     };
 
-    let mut output = String::new();
-    output.push_str(&ctx.theme.foreground.fg);
-    output.push_str(&parse_node(root, &mut ctx));
-
-    let mut res = output.replace(RESET, &format!("{RESET}{}", &ctx.theme.foreground.fg));
+    let output = parse_node(root, &mut ctx);
+    let mut res = apply_base_ansi_theme(&output, &ctx.theme);
 
     // replace images
     for (_, img) in ctx.image_preprocessor.mapper {
@@ -77,6 +74,22 @@ pub fn md_to_ansi(
     }
 
     Ok(res)
+}
+
+fn apply_base_ansi_theme(rendered: &str, theme: &CustomTheme) -> String {
+    if rendered.is_empty() {
+        return String::new();
+    }
+
+    let base_style = format!("{}{}", theme.background.bg, theme.foreground.fg);
+    let mut themed =
+        format!("{base_style}{rendered}").replace(RESET, &format!("{RESET}{base_style}"));
+
+    if !themed.ends_with(RESET) {
+        themed.push_str(RESET);
+    }
+
+    themed
 }
 
 pub fn md_to_html(markdown: &str, theme: &Theme, style: bool) -> String {
@@ -145,4 +158,28 @@ fn comrak_options<'a>() -> options::Options<'a> {
     options.render.r#unsafe = true;
 
     options
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CustomTheme, RESET, apply_base_ansi_theme};
+    use crate::config::Theme;
+
+    #[test]
+    fn base_theme_reapplies_background_after_reset() {
+        let theme = CustomTheme::from(&Theme::Autumn);
+        let rendered = format!("before{RESET}after");
+        let themed = apply_base_ansi_theme(&rendered, &theme);
+        let base = format!("{}{}", theme.background.bg, theme.foreground.fg);
+
+        assert!(themed.starts_with(&base));
+        assert!(themed.contains(&format!("{RESET}{base}after")));
+        assert!(themed.ends_with(RESET));
+    }
+
+    #[test]
+    fn empty_render_stays_empty() {
+        let theme = CustomTheme::from(&Theme::GithubLight);
+        assert!(apply_base_ansi_theme("", &theme).is_empty());
+    }
 }

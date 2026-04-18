@@ -1,5 +1,10 @@
 use anyhow::{Context, Result};
 use crossterm::{
+    cursor::{Hide, MoveTo, Show},
+    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    execute, queue,
+    style::Print,
+    terminal::{self, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen},
     terminal::{disable_raw_mode, enable_raw_mode},
     tty::IsTty,
 };
@@ -7,7 +12,7 @@ use image::DynamicImage;
 use rasteroid::{Encoder, RasterEncoder, image_extended::InlineImage, term_misc};
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use std::{
-    io::{Cursor, Write, stdout},
+    io::{Cursor, Stdout, Write, stdout},
     process::{Command, Stdio},
 };
 
@@ -305,8 +310,36 @@ fn interact_with_image(
 }
 
 pub struct Pager {
-    command: String,
-    args: Vec<String>,
+    kind: PagerKind,
+}
+
+enum PagerKind {
+    Builtin,
+    External { command: String, args: Vec<String> },
+}
+
+struct PagerTerminalGuard {
+    stdout: Stdout,
+}
+
+impl PagerTerminalGuard {
+    fn enter() -> Result<Self> {
+        enable_raw_mode()?;
+        let mut stdout = stdout();
+        execute!(stdout, EnterAlternateScreen, Hide)?;
+        Ok(Self { stdout })
+    }
+
+    fn stdout_mut(&mut self) -> &mut Stdout {
+        &mut self.stdout
+    }
+}
+
+impl Drop for PagerTerminalGuard {
+    fn drop(&mut self) {
+        let _ = execute!(self.stdout, Show, LeaveAlternateScreen);
+        let _ = disable_raw_mode();
+    }
 }
 
 impl Pager {
@@ -316,26 +349,190 @@ impl Pager {
         Some((cmd.clone(), args.to_vec()))
     }
     pub fn new(def_command: &str) -> Option<Self> {
+        if def_command.trim() == "less -r" {
+            return Some(Self {
+                kind: PagerKind::Builtin,
+            });
+        }
+
         let (command, args) = Pager::command_and_args_from_string(def_command)?;
         if which::which(&command).is_ok() {
-            return Some(Self { command, args });
+            return Some(Self {
+                kind: PagerKind::External { command, args },
+            });
         }
         None
     }
 
     pub fn page(&self, content: &str) -> Result<()> {
-        let mut child = Command::new(&self.command)
-            .args(&self.args)
-            .stdin(Stdio::piped())
-            .spawn()?;
+        match &self.kind {
+            PagerKind::Builtin => self.page_builtin(content),
+            PagerKind::External { command, args } => {
+                let mut child = Command::new(command)
+                    .args(args)
+                    .stdin(Stdio::piped())
+                    .spawn()?;
 
-        if let Some(stdin) = child.stdin.as_mut() {
-            // ignoring cuz the pipe will break when the user quits most likely
-            let _ = stdin.write_all(content.as_bytes());
+                if let Some(stdin) = child.stdin.as_mut() {
+                    // ignoring cuz the pipe will break when the user quits most likely
+                    let _ = stdin.write_all(content.as_bytes());
+                }
+
+                child.wait()?;
+                Ok(())
+            }
+        }
+    }
+
+    fn page_builtin(&self, content: &str) -> Result<()> {
+        let lines: Vec<&str> = content.lines().collect();
+        let mut top = 0usize;
+        let mut guard = PagerTerminalGuard::enter()?;
+
+        loop {
+            Self::render_builtin_page(guard.stdout_mut(), &lines, top)?;
+
+            match event::read()? {
+                Event::Key(KeyEvent {
+                    code: KeyCode::Esc, ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Char('q'),
+                    modifiers: KeyModifiers::NONE,
+                    ..
+                }) => break,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Down,
+                    ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Char('j'),
+                    modifiers: KeyModifiers::NONE,
+                    ..
+                }) => {
+                    top = Self::scroll_down(&lines, top, 1);
+                }
+                Event::Key(KeyEvent {
+                    code: KeyCode::Up, ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Char('k'),
+                    modifiers: KeyModifiers::NONE,
+                    ..
+                }) => {
+                    top = top.saturating_sub(1);
+                }
+                Event::Key(KeyEvent {
+                    code: KeyCode::PageDown,
+                    ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Char(' '),
+                    modifiers: KeyModifiers::NONE,
+                    ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Char('f'),
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
+                }) => {
+                    top = Self::scroll_down(&lines, top, Self::page_step());
+                }
+                Event::Key(KeyEvent {
+                    code: KeyCode::PageUp,
+                    ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Char('b'),
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
+                }) => {
+                    top = top.saturating_sub(Self::page_step());
+                }
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('g'),
+                    modifiers: KeyModifiers::NONE,
+                    ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Home,
+                    ..
+                }) => top = 0,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('G'),
+                    modifiers: KeyModifiers::SHIFT,
+                    ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::End, ..
+                }) => {
+                    let page_height = Self::page_height();
+                    top = lines.len().saturating_sub(page_height);
+                }
+                Event::Resize(_, _) => {}
+                _ => {}
+            }
         }
 
-        child.wait()?;
-
         Ok(())
+    }
+
+    fn render_builtin_page(stdout: &mut Stdout, lines: &[&str], top: usize) -> Result<()> {
+        let (_, term_height) = terminal::size()?;
+        let page_height = Self::page_height().min(term_height.saturating_sub(1) as usize);
+        let end = top.saturating_add(page_height).min(lines.len());
+        let status = format!(
+            "[Esc/q] Quit  [j/k or arrows] Scroll  [PgUp/PgDn/Space] Page  [g/G] Start/End  {}/{}",
+            end.min(lines.len()),
+            lines.len()
+        );
+
+        queue!(stdout, Clear(ClearType::All), MoveTo(0, 0))?;
+        for line in &lines[top..end] {
+            queue!(stdout, Print(*line), Print("\r\n"))?;
+        }
+        queue!(
+            stdout,
+            MoveTo(0, term_height.saturating_sub(1)),
+            Print(status)
+        )?;
+        stdout.flush()?;
+        Ok(())
+    }
+
+    fn page_height() -> usize {
+        terminal::size()
+            .map(|(_, h)| h.saturating_sub(1) as usize)
+            .unwrap_or(24)
+            .max(1)
+    }
+
+    fn page_step() -> usize {
+        Self::page_height().saturating_sub(1).max(1)
+    }
+
+    fn scroll_down(lines: &[&str], top: usize, amount: usize) -> usize {
+        let page_height = Self::page_height();
+        let max_top = lines.len().saturating_sub(page_height);
+        top.saturating_add(amount).min(max_top)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Pager;
+
+    #[test]
+    fn default_less_uses_builtin_pager() {
+        let pager = Pager::new("less -r");
+        assert!(pager.is_some());
+    }
+
+    #[test]
+    fn splits_command_and_args() {
+        let (command, args) = Pager::command_and_args_from_string("bat --paging never file.md")
+            .expect("command should parse");
+        assert_eq!(command, "bat");
+        assert_eq!(args, vec!["--paging", "never", "file.md"]);
     }
 }
